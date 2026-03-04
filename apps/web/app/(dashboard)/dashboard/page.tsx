@@ -1,286 +1,222 @@
-'use client';
+'use client'
 
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import MetricCard from '@/components/ui/MetricCard';
+import { motion } from 'framer-motion'
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts'
+import Link from 'next/link'
 
-// Icons (using simple emoji for now, replace with lucide-react if available)
-const StepsIcon = () => '👟';
-const SleepIcon = () => '😴';
-const HeartIcon = () => '❤️';
-const CaloriesIcon = () => '🔥';
+const recoveryData = [65, 72, 68, 80, 75, 87, 91].map((v, i) => ({ v }))
+const hrvData = [52, 58, 55, 63, 60, 65, 68].map((v) => ({ v }))
+const sleepData = [6.5, 7.2, 6.8, 7.5, 8.1, 7.4, 7.7].map((v) => ({ v }))
+const strainData = [8, 11, 14, 10, 13, 9, 14].map((v) => ({ v }))
 
-interface MetricData {
-  title: string;
-  value: number | string;
-  unit: string;
-  icon: React.ReactNode;
-  trend?: 'up' | 'down' | 'stable';
-  trendValue?: number;
-  color: 'purple' | 'blue' | 'green';
-}
+const metrics = [
+  {
+    label: 'Recovery',
+    value: '87',
+    unit: '%',
+    sub: '+12 from yesterday',
+    color: '#10B981',
+    bg: 'rgba(16,185,129,0.08)',
+    border: 'rgba(16,185,129,0.15)',
+    data: recoveryData,
+    trend: 'up',
+  },
+  {
+    label: 'HRV',
+    value: '68',
+    unit: 'ms',
+    sub: '↑ 5ms this week',
+    color: '#8B5CF6',
+    bg: 'rgba(139,92,246,0.08)',
+    border: 'rgba(139,92,246,0.15)',
+    data: hrvData,
+    trend: 'up',
+  },
+  {
+    label: 'Sleep',
+    value: '7h 42m',
+    unit: '',
+    sub: 'Score 91 · Deep 1h 20m',
+    color: '#3B82F6',
+    bg: 'rgba(59,130,246,0.08)',
+    border: 'rgba(59,130,246,0.15)',
+    data: sleepData,
+    trend: 'up',
+  },
+  {
+    label: 'Strain',
+    value: '14.2',
+    unit: '',
+    sub: 'High · 847 kcal',
+    color: '#F59E0B',
+    bg: 'rgba(245,158,11,0.08)',
+    border: 'rgba(245,158,11,0.15)',
+    data: strainData,
+    trend: 'up',
+  },
+]
+
+const recentWorkouts = [
+  { name: 'Morning Run', type: 'Run', duration: '42 min', distance: '7.2 km', strain: 12.4, date: 'Today' },
+  { name: 'Strength Training', type: 'Weights', duration: '58 min', distance: null, strain: 11.1, date: 'Yesterday' },
+  { name: 'Evening Ride', type: 'Ride', duration: '1h 12m', distance: '28.4 km', strain: 14.8, date: 'Mon' },
+]
+
+const insights = [
+  { icon: '💜', text: 'Your HRV has been trending up for 5 days — body is adapting well to training load.', color: '#8B5CF6' },
+  { icon: '⚠️', text: 'Sleep debt building. You\'re 1.5 hrs short this week — prioritize sleep tonight.', color: '#F59E0B' },
+]
 
 export default function DashboardPage() {
-  const [metrics, setMetrics] = useState<MetricData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [userName, setUserName] = useState('');
-
-  useEffect(() => {
-    // Fetch user data and metrics
-    const fetchDashboardData = async () => {
-      try {
-        // Get user profile
-        const userResponse = await fetch('/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-          },
-        });
-
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
-          setUserName(userData.full_name || userData.email || 'User');
-        }
-
-        // Fetch health metrics
-        const metricsResponse = await fetch('/api/health/metrics?limit=100', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-          },
-        });
-
-        if (metricsResponse.ok) {
-          const metricsData = await metricsResponse.json();
-          const latestMetrics = processMetrics(metricsData.data || []);
-          setMetrics(latestMetrics);
-        }
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-        // Set default mock data for demo
-        setMetrics(getMockMetrics());
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, []);
-
-  const processMetrics = (rawMetrics: any[]): MetricData[] => {
-    const grouped: Record<string, any> = {};
-
-    // Group by metric type and get latest
-    rawMetrics.forEach((metric) => {
-      if (!grouped[metric.metric_type]) {
-        grouped[metric.metric_type] = metric;
-      }
-    });
-
-    // Map to display metrics
-    const metricColors: Record<string, 'purple' | 'blue' | 'green'> = {
-      steps: 'purple',
-      heart_rate: 'blue',
-      sleep: 'green',
-      calories: 'blue',
-    };
-
-    return Object.entries(grouped)
-      .map(([type, data]) => {
-        const valueNum = parseFloat(data.value);
-        const trendValue = Math.floor(Math.random() * 15); // Mock trend
-
-        return {
-          title: type.replace('_', ' ').toUpperCase(),
-          value: type === 'sleep' ? valueNum.toFixed(1) : Math.round(valueNum),
-          unit: data.unit,
-          icon:
-            type === 'steps'
-              ? StepsIcon()
-              : type === 'sleep'
-                ? SleepIcon()
-                : type === 'heart_rate'
-                  ? HeartIcon()
-                  : CaloriesIcon(),
-          trend: Math.random() > 0.5 ? 'up' : 'down',
-          trendValue,
-          color: metricColors[type] || 'purple',
-        };
-      })
-      .slice(0, 4);
-  };
-
-  const getMockMetrics = (): MetricData[] => [
-    {
-      title: 'Steps',
-      value: '8,437',
-      unit: 'steps',
-      icon: StepsIcon(),
-      trend: 'up',
-      trendValue: 12,
-      color: 'purple',
-    },
-    {
-      title: 'Sleep',
-      value: '7.5',
-      unit: 'hours',
-      icon: SleepIcon(),
-      trend: 'down',
-      trendValue: 8,
-      color: 'green',
-    },
-    {
-      title: 'Heart Rate',
-      value: '68',
-      unit: 'bpm',
-      icon: HeartIcon(),
-      trend: 'stable',
-      trendValue: 2,
-      color: 'blue',
-    },
-    {
-      title: 'Calories',
-      value: '567',
-      unit: 'kcal',
-      icon: CaloriesIcon(),
-      trend: 'up',
-      trendValue: 5,
-      color: 'blue',
-    },
-  ];
-
-  const containerVariants = {
-    initial: { opacity: 0 },
-    animate: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2,
-      },
-    },
-  };
-
-  const displayMetrics = metrics.length > 0 ? metrics : getMockMetrics();
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="border-b border-slate-700/50 backdrop-blur-sm bg-slate-900/50">
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <h1 className="text-4xl font-bold text-white mb-2">
-              Welcome back, {userName || 'Athlete'}
-            </h1>
-            <p className="text-gray-400">
-              Here's your health & fitness overview for today
-            </p>
-          </motion.div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        {loading ? (
-          <div className="flex items-center justify-center min-h-96">
-            <div className="animate-pulse text-gray-400">Loading metrics...</div>
+      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Good morning, Pranav</h1>
+            <p className="text-gray-500 text-sm mt-0.5">Wednesday, March 4 · Last synced 2 min ago</p>
           </div>
-        ) : (
-          <>
-            {/* Metrics Grid */}
-            <motion.div
-              variants={containerVariants}
-              initial="initial"
-              animate="animate"
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12"
-            >
-              {displayMetrics.map((metric, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1, duration: 0.3 }}
-                >
-                  <MetricCard
-                    title={metric.title}
-                    value={metric.value}
-                    unit={metric.unit}
-                    icon={metric.icon}
-                    trend={metric.trend}
-                    trendValue={metric.trendValue}
-                    color={metric.color}
-                    onClick={() => {
-                      // Navigate to metric detail page
-                      console.log(`Clicked on ${metric.title}`);
-                    }}
-                  />
-                </motion.div>
-              ))}
-            </motion.div>
+          <div className="flex items-center gap-2 text-xs text-green-400 bg-green-400/8 px-3 py-1.5 rounded-full border border-green-400/15">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+            Live
+          </div>
+        </div>
+      </motion.div>
 
-            {/* Insights Section */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.3 }}
-              className="mt-12"
-            >
-              <div className="rounded-xl border border-slate-700/50 bg-slate-900/40 backdrop-blur-sm p-8">
-                <h2 className="text-2xl font-bold text-white mb-4">
-                  AI Insights
-                </h2>
-                <div className="space-y-4">
-                  <div className="p-4 rounded-lg bg-gradient-to-r from-purple-900/20 to-purple-800/10 border border-purple-500/30">
-                    <p className="text-sm text-gray-300">
-                      <span className="font-semibold text-purple-300">
-                        💡 Insight:
-                      </span>{' '}
-                      Your step count is trending up! Keep up the momentum — you're
-                      on track for your daily goal.
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-lg bg-gradient-to-r from-green-900/20 to-green-800/10 border border-green-500/30">
-                    <p className="text-sm text-gray-300">
-                      <span className="font-semibold text-green-300">
-                        😴 Sleep:
-                      </span>{' '}
-                      You're getting solid recovery. Consider maintaining this
-                      routine.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Connect Health Services */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7, duration: 0.3 }}
-              className="mt-8"
-            >
-              <div className="rounded-xl border border-slate-700/50 bg-slate-900/40 backdrop-blur-sm p-8">
-                <h2 className="text-2xl font-bold text-white mb-6">
-                  Connect Health Services
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {['Strava', 'Garmin', 'Apple Health'].map((service) => (
-                    <button
-                      key={service}
-                      className="p-4 rounded-lg border border-slate-600 bg-slate-800/50 hover:bg-slate-700/50 hover:border-slate-500 transition-all duration-300 text-white font-medium group"
-                    >
-                      <span className="group-hover:translate-x-1 inline-block transition-transform">
-                        {service}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
+      {/* Metric cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {metrics.map((m, i) => (
+          <motion.div
+            key={m.label}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.07 }}
+            whileHover={{ y: -2 }}
+            className="rounded-2xl p-5 border cursor-pointer"
+            style={{ background: m.bg, borderColor: m.border }}
+          >
+            <p className="text-xs text-gray-500 mb-3 uppercase tracking-wider">{m.label}</p>
+            <div className="flex items-baseline gap-1 mb-1">
+              <span className="text-2xl font-bold" style={{ color: m.color }}>{m.value}</span>
+              {m.unit && <span className="text-sm text-gray-500">{m.unit}</span>}
+            </div>
+            <p className="text-xs text-gray-500 mb-4">{m.sub}</p>
+            <div className="h-12">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={m.data} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                  <Area type="monotone" dataKey="v" stroke={m.color} strokeWidth={1.5} fill={m.color} fillOpacity={0.1} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
+        ))}
       </div>
+
+      {/* Middle row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Weekly training load */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="lg:col-span-2 rounded-2xl border border-white/[0.05] bg-[#0e0e0e] p-6"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="font-semibold text-sm">Weekly Training Load</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Strain vs Recovery</p>
+            </div>
+            <span className="text-xs text-gray-600 border border-white/5 px-2 py-1 rounded-lg">Last 7 days</span>
+          </div>
+          <div className="h-40">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={[
+                { day: 'Mon', strain: 8, recovery: 72 },
+                { day: 'Tue', strain: 11, recovery: 68 },
+                { day: 'Wed', strain: 14, recovery: 75 },
+                { day: 'Thu', strain: 10, recovery: 80 },
+                { day: 'Fri', strain: 13, recovery: 77 },
+                { day: 'Sat', strain: 9, recovery: 85 },
+                { day: 'Sun', strain: 14, recovery: 87 },
+              ]} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
+                <Area type="monotone" dataKey="recovery" stroke="#10B981" strokeWidth={1.5} fill="#10B981" fillOpacity={0.08} dot={false} />
+                <Area type="monotone" dataKey="strain" stroke="#F59E0B" strokeWidth={1.5} fill="#F59E0B" fillOpacity={0.08} dot={false} />
+                <Tooltip
+                  contentStyle={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: '#666' }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex gap-4 mt-2">
+            <div className="flex items-center gap-1.5 text-xs text-gray-500"><span className="w-2.5 h-0.5 bg-green-400 rounded" />Recovery</div>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500"><span className="w-2.5 h-0.5 bg-yellow-400 rounded" />Strain</div>
+          </div>
+        </motion.div>
+
+        {/* AI Insights */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+          className="rounded-2xl border border-white/[0.05] bg-[#0e0e0e] p-6 flex flex-col"
+        >
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-semibold text-sm">AI Insights</h3>
+            <Link href="/dashboard/insights" className="text-xs text-gray-500 hover:text-white transition-colors">View all →</Link>
+          </div>
+          <div className="space-y-4 flex-1">
+            {insights.map((ins, i) => (
+              <div key={i} className="flex gap-3">
+                <span className="text-lg flex-shrink-0">{ins.icon}</span>
+                <p className="text-xs text-gray-400 leading-relaxed">{ins.text}</p>
+              </div>
+            ))}
+          </div>
+          <Link href="/dashboard/chat" className="mt-5 w-full py-2.5 rounded-xl border border-white/[0.06] text-xs text-gray-400 hover:text-white hover:border-white/10 transition-colors text-center">
+            Ask the AI →
+          </Link>
+        </motion.div>
+      </div>
+
+      {/* Recent workouts */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="rounded-2xl border border-white/[0.05] bg-[#0e0e0e] p-6"
+      >
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="font-semibold text-sm">Recent Activity</h3>
+          <Link href="/dashboard/workouts" className="text-xs text-gray-500 hover:text-white transition-colors">View all →</Link>
+        </div>
+        <div className="space-y-3">
+          {recentWorkouts.map((w, i) => (
+            <motion.div
+              key={w.name}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.45 + i * 0.06 }}
+              className="flex items-center justify-between py-3 border-b border-white/[0.04] last:border-0"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-9 h-9 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-sm">
+                  {w.type === 'Run' ? '🏃' : w.type === 'Ride' ? '🚴' : '🏋️'}
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{w.name}</p>
+                  <p className="text-xs text-gray-500">{w.duration}{w.distance ? ` · ${w.distance}` : ''}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-medium text-yellow-400">{w.strain}</p>
+                <p className="text-xs text-gray-500">{w.date}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
     </div>
-  );
+  )
 }
