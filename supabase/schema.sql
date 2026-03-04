@@ -1,198 +1,454 @@
 -- Zyra Database Schema
--- Run this in Supabase SQL Editor
+-- PostgreSQL schema for Supabase with RLS policies
 
--- Enable UUID extension
-create extension if not exists "uuid-ossp";
+-- Enable necessary extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
--- =====================
--- USERS (extends auth.users)
--- =====================
-create table public.users (
-  id uuid references auth.users(id) on delete cascade primary key,
-  email text not null,
-  full_name text,
-  avatar_url text,
-  plan text not null default 'free' check (plan in ('free', 'pro', 'teams')),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+-- ============================================================================
+-- Users Table (extends auth.users)
+-- ============================================================================
+CREATE TABLE public.users (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT,
+  plan TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'pro', 'teams')),
+  avatar_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- =====================
--- HEALTH METRICS
--- =====================
-create table public.health_metrics (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid references public.users(id) on delete cascade not null,
-  source text not null check (source in ('strava', 'garmin', 'apple_health', 'manual')),
-  type text not null check (type in ('steps', 'heart_rate', 'sleep', 'workout', 'calories', 'hrv', 'distance')),
-  value numeric not null,
-  unit text not null,
-  recorded_at timestamptz not null,
-  created_at timestamptz not null default now()
+CREATE INDEX idx_users_email ON public.users(email);
+
+-- ============================================================================
+-- Health Metrics Table
+-- ============================================================================
+CREATE TABLE public.health_metrics (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  source TEXT NOT NULL CHECK (source IN ('strava', 'garmin', 'apple_health', 'manual')),
+  type TEXT NOT NULL CHECK (type IN ('steps', 'heart_rate', 'sleep', 'workout', 'calories', 'hrv')),
+  value NUMERIC NOT NULL,
+  unit TEXT NOT NULL,
+  recorded_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-create index health_metrics_user_id_idx on public.health_metrics(user_id);
-create index health_metrics_recorded_at_idx on public.health_metrics(recorded_at desc);
-create index health_metrics_type_idx on public.health_metrics(type);
+CREATE INDEX idx_health_metrics_user_id ON public.health_metrics(user_id);
+CREATE INDEX idx_health_metrics_recorded_at ON public.health_metrics(recorded_at DESC);
+CREATE INDEX idx_health_metrics_type ON public.health_metrics(type);
+CREATE INDEX idx_health_metrics_user_recorded ON public.health_metrics(user_id, recorded_at DESC);
 
--- =====================
--- WORKOUTS
--- =====================
-create table public.workouts (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid references public.users(id) on delete cascade not null,
-  source text not null check (source in ('strava', 'garmin', 'apple_health', 'manual')),
-  type text not null,
-  duration integer not null, -- seconds
-  distance numeric, -- meters
-  calories numeric,
-  avg_heart_rate numeric,
-  started_at timestamptz not null,
-  raw_data jsonb,
-  created_at timestamptz not null default now()
+-- ============================================================================
+-- Workouts Table
+-- ============================================================================
+CREATE TABLE public.workouts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  source TEXT NOT NULL CHECK (source IN ('strava', 'garmin', 'apple_health', 'manual')),
+  type TEXT NOT NULL,
+  duration INTEGER NOT NULL, -- seconds
+  distance NUMERIC, -- meters
+  calories NUMERIC,
+  avg_heart_rate NUMERIC,
+  max_heart_rate NUMERIC,
+  elevation_gain NUMERIC,
+  started_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  ended_at TIMESTAMP WITH TIME ZONE,
+  notes TEXT,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-create index workouts_user_id_idx on public.workouts(user_id);
-create index workouts_started_at_idx on public.workouts(started_at desc);
+CREATE INDEX idx_workouts_user_id ON public.workouts(user_id);
+CREATE INDEX idx_workouts_started_at ON public.workouts(started_at DESC);
+CREATE INDEX idx_workouts_user_started ON public.workouts(user_id, started_at DESC);
+CREATE INDEX idx_workouts_type ON public.workouts(type);
 
--- =====================
--- AI INSIGHTS
--- =====================
-create table public.ai_insights (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid references public.users(id) on delete cascade not null,
-  type text not null check (type in ('recommendation', 'warning', 'achievement', 'game_plan', 'summary')),
-  title text not null,
-  body text not null,
-  data jsonb,
-  created_at timestamptz not null default now()
+-- ============================================================================
+-- AI Insights Table
+-- ============================================================================
+CREATE TABLE public.ai_insights (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('recommendation', 'warning', 'achievement', 'game_plan')),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  data JSONB DEFAULT '{}',
+  metric_type TEXT, -- optional: link to specific metric type
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-create index ai_insights_user_id_idx on public.ai_insights(user_id);
-create index ai_insights_created_at_idx on public.ai_insights(created_at desc);
+CREATE INDEX idx_ai_insights_user_id ON public.ai_insights(user_id);
+CREATE INDEX idx_ai_insights_created_at ON public.ai_insights(created_at DESC);
+CREATE INDEX idx_ai_insights_type ON public.ai_insights(type);
+CREATE INDEX idx_ai_insights_user_created ON public.ai_insights(user_id, created_at DESC);
 
--- =====================
--- OAUTH TOKENS (Strava, Garmin, Apple)
--- =====================
-create table public.oauth_tokens (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid references public.users(id) on delete cascade not null,
-  provider text not null check (provider in ('strava', 'garmin', 'apple_health')),
-  access_token text not null,
-  refresh_token text,
-  expires_at timestamptz,
-  scope text,
-  provider_user_id text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique(user_id, provider)
+-- ============================================================================
+-- OAuth Tokens Table (encrypted)
+-- ============================================================================
+CREATE TABLE public.oauth_tokens (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL CHECK (provider IN ('strava', 'garmin', 'apple_health')),
+  access_token TEXT NOT NULL, -- encrypt in production
+  refresh_token TEXT,
+  token_type TEXT,
+  expires_at TIMESTAMP WITH TIME ZONE,
+  scope TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, provider)
 );
 
--- =====================
--- TEAMS (Pro tier)
--- =====================
-create table public.teams (
-  id uuid primary key default uuid_generate_v4(),
-  name text not null,
-  owner_id uuid references public.users(id) on delete cascade not null,
-  sport text,
-  created_at timestamptz not null default now()
+CREATE INDEX idx_oauth_tokens_user_id ON public.oauth_tokens(user_id);
+CREATE INDEX idx_oauth_tokens_provider ON public.oauth_tokens(provider);
+
+-- ============================================================================
+-- Teams Table (Pro tier)
+-- ============================================================================
+CREATE TABLE public.teams (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  owner_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  description TEXT,
+  avatar_url TEXT,
+  sport TEXT, -- e.g., 'running', 'cycling', 'soccer', 'football'
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- =====================
--- TEAM MEMBERS
--- =====================
-create table public.team_members (
-  id uuid primary key default uuid_generate_v4(),
-  team_id uuid references public.teams(id) on delete cascade not null,
-  user_id uuid references public.users(id) on delete cascade not null,
-  role text not null default 'athlete' check (role in ('owner', 'coach', 'athlete')),
-  joined_at timestamptz not null default now(),
-  unique(team_id, user_id)
+CREATE INDEX idx_teams_owner_id ON public.teams(owner_id);
+CREATE INDEX idx_teams_created_at ON public.teams(created_at DESC);
+
+-- ============================================================================
+-- Team Members Table
+-- ============================================================================
+CREATE TABLE public.team_members (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  team_id UUID NOT NULL REFERENCES public.teams(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'athlete' CHECK (role IN ('admin', 'coach', 'athlete')),
+  joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(team_id, user_id)
 );
 
--- =====================
--- GAME PLANS (Teams tier)
--- =====================
-create table public.game_plans (
-  id uuid primary key default uuid_generate_v4(),
-  team_id uuid references public.teams(id) on delete cascade not null,
-  created_by uuid references public.users(id) not null,
-  title text not null,
-  opponent_data jsonb,
-  video_analysis text,
-  fitness_recommendations jsonb not null default '[]',
-  created_at timestamptz not null default now()
+CREATE INDEX idx_team_members_team_id ON public.team_members(team_id);
+CREATE INDEX idx_team_members_user_id ON public.team_members(user_id);
+
+-- ============================================================================
+-- Game Plans Table (Pro tier)
+-- ============================================================================
+CREATE TABLE public.game_plans (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  team_id UUID NOT NULL REFERENCES public.teams(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  opponent_data JSONB DEFAULT '{}',
+  video_analysis TEXT, -- URL or embedded
+  fitness_recommendations TEXT[] DEFAULT '{}',
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-create index game_plans_team_id_idx on public.game_plans(team_id);
+CREATE INDEX idx_game_plans_team_id ON public.game_plans(team_id);
+CREATE INDEX idx_game_plans_created_at ON public.game_plans(created_at DESC);
 
--- =====================
--- RLS POLICIES
--- =====================
-alter table public.users enable row level security;
-alter table public.health_metrics enable row level security;
-alter table public.workouts enable row level security;
-alter table public.ai_insights enable row level security;
-alter table public.oauth_tokens enable row level security;
-alter table public.teams enable row level security;
-alter table public.team_members enable row level security;
-alter table public.game_plans enable row level security;
+-- ============================================================================
+-- Row-Level Security (RLS) Policies
+-- ============================================================================
 
--- Users: only read/update own profile
-create policy "users_select_own" on public.users for select using (auth.uid() = id);
-create policy "users_update_own" on public.users for update using (auth.uid() = id);
-create policy "users_insert_own" on public.users for insert with check (auth.uid() = id);
+-- Enable RLS on all tables
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.health_metrics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.workouts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_insights ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.oauth_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.teams ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.game_plans ENABLE ROW LEVEL SECURITY;
 
--- Health metrics: only own data
-create policy "health_metrics_own" on public.health_metrics for all using (auth.uid() = user_id);
+-- Users: can only read own profile
+CREATE POLICY "Users can read own profile"
+  ON public.users
+  FOR SELECT
+  USING (auth.uid() = id);
 
--- Workouts: only own data
-create policy "workouts_own" on public.workouts for all using (auth.uid() = user_id);
+CREATE POLICY "Users can update own profile"
+  ON public.users
+  FOR UPDATE
+  USING (auth.uid() = id);
 
--- AI insights: only own data
-create policy "ai_insights_own" on public.ai_insights for all using (auth.uid() = user_id);
+-- Health Metrics: can only read/write own
+CREATE POLICY "Users can read own health metrics"
+  ON public.health_metrics
+  FOR SELECT
+  USING (auth.uid() = user_id);
 
--- OAuth tokens: only own tokens
-create policy "oauth_tokens_own" on public.oauth_tokens for all using (auth.uid() = user_id);
+CREATE POLICY "Users can insert own health metrics"
+  ON public.health_metrics
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
 
--- Teams: owner can do everything, members can read
-create policy "teams_owner" on public.teams for all using (auth.uid() = owner_id);
-create policy "teams_member_read" on public.teams for select using (
-  exists (select 1 from public.team_members where team_id = id and user_id = auth.uid())
-);
+CREATE POLICY "Users can update own health metrics"
+  ON public.health_metrics
+  FOR UPDATE
+  USING (auth.uid() = user_id);
 
--- Team members: team owner manages, members can read own team
-create policy "team_members_owner" on public.team_members for all using (
-  exists (select 1 from public.teams where id = team_id and owner_id = auth.uid())
-);
-create policy "team_members_self" on public.team_members for select using (auth.uid() = user_id);
+CREATE POLICY "Users can delete own health metrics"
+  ON public.health_metrics
+  FOR DELETE
+  USING (auth.uid() = user_id);
 
--- Game plans: team members can read, coaches/owners can create
-create policy "game_plans_read" on public.game_plans for select using (
-  exists (select 1 from public.team_members where team_id = game_plans.team_id and user_id = auth.uid())
-);
-create policy "game_plans_create" on public.game_plans for insert with check (
-  exists (select 1 from public.team_members where team_id = game_plans.team_id and user_id = auth.uid() and role in ('owner', 'coach'))
-);
+-- Workouts: can only read/write own
+CREATE POLICY "Users can read own workouts"
+  ON public.workouts
+  FOR SELECT
+  USING (auth.uid() = user_id);
 
--- =====================
--- AUTO-CREATE USER PROFILE ON SIGNUP
--- =====================
-create or replace function public.handle_new_user()
-returns trigger as $$
-begin
-  insert into public.users (id, email, full_name, avatar_url)
-  values (
-    new.id,
-    new.email,
-    new.raw_user_meta_data->>'full_name',
-    new.raw_user_meta_data->>'avatar_url'
+CREATE POLICY "Users can insert own workouts"
+  ON public.workouts
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own workouts"
+  ON public.workouts
+  FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own workouts"
+  ON public.workouts
+  FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- AI Insights: can only read own
+CREATE POLICY "Users can read own insights"
+  ON public.ai_insights
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own insights"
+  ON public.ai_insights
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own insights"
+  ON public.ai_insights
+  FOR UPDATE
+  USING (auth.uid() = user_id);
+
+-- OAuth Tokens: can only read/write own
+CREATE POLICY "Users can read own oauth tokens"
+  ON public.oauth_tokens
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage own oauth tokens"
+  ON public.oauth_tokens
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own oauth tokens"
+  ON public.oauth_tokens
+  FOR UPDATE
+  USING (auth.uid() = user_id);
+
+-- Teams: owners can read own, members can read team
+CREATE POLICY "Team owners can read own teams"
+  ON public.teams
+  FOR SELECT
+  USING (auth.uid() = owner_id);
+
+CREATE POLICY "Team members can read their teams"
+  ON public.teams
+  FOR SELECT
+  USING (
+    id IN (
+      SELECT team_id FROM public.team_members WHERE user_id = auth.uid()
+    )
   );
-  return new;
-end;
-$$ language plpgsql security definer;
 
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+CREATE POLICY "Users can create teams"
+  ON public.teams
+  FOR INSERT
+  WITH CHECK (auth.uid() = owner_id);
+
+CREATE POLICY "Team owners can update own teams"
+  ON public.teams
+  FOR UPDATE
+  USING (auth.uid() = owner_id);
+
+CREATE POLICY "Team owners can delete own teams"
+  ON public.teams
+  FOR DELETE
+  USING (auth.uid() = owner_id);
+
+-- Team Members: team owners can manage, members can read own
+CREATE POLICY "Team owners can manage members"
+  ON public.team_members
+  FOR ALL
+  USING (
+    team_id IN (
+      SELECT id FROM public.teams WHERE owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can read their team memberships"
+  ON public.team_members
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- Game Plans: team owners/coaches can read/write, athletes can read
+CREATE POLICY "Team members can read game plans"
+  ON public.game_plans
+  FOR SELECT
+  USING (
+    team_id IN (
+      SELECT team_id FROM public.team_members WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Team owners and coaches can manage game plans"
+  ON public.game_plans
+  FOR INSERT
+  WITH CHECK (
+    team_id IN (
+      SELECT team_id FROM public.team_members 
+      WHERE user_id = auth.uid() AND role IN ('admin', 'coach')
+    )
+  );
+
+CREATE POLICY "Team owners and coaches can update game plans"
+  ON public.game_plans
+  FOR UPDATE
+  USING (
+    team_id IN (
+      SELECT team_id FROM public.team_members 
+      WHERE user_id = auth.uid() AND role IN ('admin', 'coach')
+    )
+  );
+
+CREATE POLICY "Team owners and coaches can delete game plans"
+  ON public.game_plans
+  FOR DELETE
+  USING (
+    team_id IN (
+      SELECT team_id FROM public.team_members 
+      WHERE user_id = auth.uid() AND role IN ('admin', 'coach')
+    )
+  );
+
+-- ============================================================================
+-- Triggers for updated_at timestamps
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = CURRENT_TIMESTAMP;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_health_metrics_updated_at BEFORE UPDATE ON public.health_metrics
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_workouts_updated_at BEFORE UPDATE ON public.workouts
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_ai_insights_updated_at BEFORE UPDATE ON public.ai_insights
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_oauth_tokens_updated_at BEFORE UPDATE ON public.oauth_tokens
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_teams_updated_at BEFORE UPDATE ON public.teams
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_game_plans_updated_at BEFORE UPDATE ON public.game_plans
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- ============================================================================
+-- Functions for common queries
+-- ============================================================================
+
+-- Get user's recent health metrics (last N days)
+CREATE OR REPLACE FUNCTION public.get_recent_health_metrics(
+  p_user_id UUID,
+  p_days INTEGER DEFAULT 30,
+  p_limit INTEGER DEFAULT 100
+)
+RETURNS TABLE (
+  id UUID,
+  user_id UUID,
+  source TEXT,
+  type TEXT,
+  value NUMERIC,
+  unit TEXT,
+  recorded_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    hm.id,
+    hm.user_id,
+    hm.source,
+    hm.type,
+    hm.value,
+    hm.unit,
+    hm.recorded_at,
+    hm.created_at
+  FROM public.health_metrics hm
+  WHERE hm.user_id = p_user_id
+    AND hm.recorded_at >= CURRENT_TIMESTAMP - INTERVAL '1 day' * p_days
+  ORDER BY hm.recorded_at DESC
+  LIMIT p_limit;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Get user's recent workouts
+CREATE OR REPLACE FUNCTION public.get_recent_workouts(
+  p_user_id UUID,
+  p_days INTEGER DEFAULT 30,
+  p_limit INTEGER DEFAULT 50
+)
+RETURNS TABLE (
+  id UUID,
+  user_id UUID,
+  source TEXT,
+  type TEXT,
+  duration INTEGER,
+  distance NUMERIC,
+  calories NUMERIC,
+  avg_heart_rate NUMERIC,
+  started_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    w.id,
+    w.user_id,
+    w.source,
+    w.type,
+    w.duration,
+    w.distance,
+    w.calories,
+    w.avg_heart_rate,
+    w.started_at,
+    w.created_at
+  FROM public.workouts w
+  WHERE w.user_id = p_user_id
+    AND w.started_at >= CURRENT_TIMESTAMP - INTERVAL '1 day' * p_days
+  ORDER BY w.started_at DESC
+  LIMIT p_limit;
+END;
+$$ LANGUAGE plpgsql;

@@ -1,7 +1,13 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 const integrations = [
   {
@@ -49,6 +55,34 @@ const integrations = [
 export default function ConnectPage() {
   const [connected, setConnected] = useState<string[]>([])
   const [connecting, setConnecting] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session || cancelled) return
+
+      const { data } = await supabase
+        .from('oauth_tokens')
+        .select('provider, created_at')
+        .eq('user_id', session.user.id)
+
+      if (!cancelled && data) {
+        const providers = Array.from(
+          new Set(
+            data
+              .map((row: any) => row.provider as string | undefined)
+              .filter(Boolean) as string[]
+          )
+        )
+        setConnected(providers)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleConnect = async (id: string) => {
     if (connected.includes(id)) return

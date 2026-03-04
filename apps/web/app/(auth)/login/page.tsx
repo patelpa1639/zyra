@@ -1,176 +1,87 @@
-'use client';
+'use client'
 
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { motion } from 'framer-motion';
+import { useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
+import { motion } from 'framer-motion'
+
+const OLIVE = '#8C9A2E'
+const OLIVE_LIGHT = '#A8B840'
+const WARM = '#C4A84F'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 export default function LoginPage() {
-  const router = useRouter();
-  const supabase = createClientComponentClient();
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
+    e.preventDefault()
+    setError(null)
+    if (!email || !password) { setError('Email and password are required'); return }
+    setLoading(true)
 
-    try {
-      if (!email || !password) {
-        setError('Email and password are required');
-        setLoading(false);
-        return;
-      }
-
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (signInError) {
-        setError(signInError.message);
-        setLoading(false);
-        return;
-      }
-
-      // Redirect to dashboard
-      router.push('/dashboard');
-    } catch (err) {
-      setError('An unexpected error occurred');
-      console.error(err);
-      setLoading(false);
-    }
-  };
-
-  const containerVariants = {
-    initial: { opacity: 0 },
-    animate: { opacity: 1 },
-  };
-
-  const formVariants = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-  };
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+    if (signInError) { setError(signInError.message); setLoading(false); return }
+    router.push('/dashboard')
+  }
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="initial"
-      animate="animate"
-      className="min-h-screen bg-gradient-to-br from-[#080808] via-slate-900 to-[#080808] flex items-center justify-center px-4"
-    >
-      {/* Background accent */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/3 -right-96 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/3 -left-96 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
-      </div>
+    <div className="min-h-screen bg-[#0a0906] text-white flex items-center justify-center px-4">
+      <div className="fixed inset-0 bg-[linear-gradient(rgba(140,154,46,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(140,154,46,0.03)_1px,transparent_1px)] bg-[size:64px_64px] pointer-events-none" />
+      <div className="fixed top-[-200px] left-[20%] w-[500px] h-[500px] rounded-full blur-[100px] pointer-events-none" style={{ background: 'rgba(140,154,46,0.06)' }} />
 
-      {/* Form Container */}
-      <motion.div
-        variants={formVariants}
-        transition={{ delay: 0.2 }}
-        className="relative w-full max-w-md"
-      >
-        <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 shadow-2xl">
-          {/* Header */}
-          <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold text-white mb-2">Zyra</h1>
-            <p className="text-gray-400">AI Health & Fitness Coach</p>
-          </div>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="relative w-full max-w-md">
+        <Link href="/" className="flex items-center justify-center gap-2 mb-8">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-black" style={{ background: `linear-gradient(135deg, ${OLIVE}, ${WARM})` }}>Z</div>
+          <span className="text-lg font-semibold tracking-tight">Zyra</span>
+        </Link>
 
-          {/* Error message */}
+        <div className="rounded-2xl border border-white/[0.06] p-8" style={{ background: '#0f0e0b' }}>
+          <h1 className="text-2xl font-bold mb-1">Welcome back</h1>
+          <p className="text-gray-500 text-sm mb-8">Sign in to your Zyra account</p>
+
           {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm"
-            >
-              {error}
-            </motion.div>
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+              className="mb-6 p-4 rounded-xl text-sm border border-red-500/20 text-red-400"
+              style={{ background: 'rgba(239,68,68,0.06)' }}>{error}</motion.div>
           )}
 
-          {/* Form */}
-          <form onSubmit={handleLogin} className="space-y-6">
-            {/* Email field */}
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                className="w-full px-4 py-3 rounded-lg bg-slate-800/50 border border-slate-600 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all duration-300"
-                disabled={loading}
-              />
+              <label className="block text-xs font-medium text-gray-400 mb-2">Email</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="you@email.com" disabled={loading}
+                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-gray-600 border border-white/[0.06] bg-white/[0.03] focus:outline-none focus:border-white/20 transition-colors" />
             </div>
-
-            {/* Password field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-4 py-3 rounded-lg bg-slate-800/50 border border-slate-600 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all duration-300"
-                disabled={loading}
-              />
+              <label className="block text-xs font-medium text-gray-400 mb-2">Password</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••" disabled={loading}
+                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-gray-600 border border-white/[0.06] bg-white/[0.03] focus:outline-none focus:border-white/20 transition-colors" />
             </div>
-
-            {/* Submit button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 px-4 rounded-lg bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-purple-600/50 disabled:to-purple-700/50 text-white font-semibold transition-all duration-300 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Signing in...
-                </span>
-              ) : (
-                'Sign In'
-              )}
+            <button type="submit" disabled={loading}
+              className="w-full py-3 rounded-xl text-sm font-semibold text-black transition-all hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              style={{ background: `linear-gradient(135deg, ${OLIVE_LIGHT}, ${WARM})` }}>
+              {loading
+                ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />Signing in...</span>
+                : 'Sign in'}
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="my-6 flex items-center gap-4">
-            <div className="flex-1 h-px bg-slate-700" />
-            <span className="text-xs text-gray-500">OR</span>
-            <div className="flex-1 h-px bg-slate-700" />
-          </div>
-
-          {/* Sign up link */}
-          <p className="text-center text-gray-400 text-sm">
-            Don't have an account?{' '}
-            <Link href="/signup" className="text-purple-400 hover:text-purple-300 font-medium transition-colors">
-              Sign up
-            </Link>
-          </p>
-
-          {/* Demo credentials hint */}
-          <div className="mt-6 p-4 rounded-lg bg-slate-800/30 border border-slate-700/50">
-            <p className="text-xs text-gray-500">
-              Demo mode: Use any email/password to test. This will create a new account.
-            </p>
+          {/* Demo hint */}
+          <div className="mt-6 p-3 rounded-xl border border-white/[0.04] text-xs text-gray-600" style={{ background: 'rgba(255,255,255,0.02)' }}>
+            Demo account: <span className="text-gray-400">demo@zyra.ai</span> / <span className="text-gray-400">Demo1234!</span>
           </div>
         </div>
-
-        {/* Bottom accent line */}
-        <div className="absolute -bottom-1 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50" />
       </motion.div>
-    </motion.div>
-  );
+    </div>
+  )
 }

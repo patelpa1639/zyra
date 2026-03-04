@@ -1,16 +1,24 @@
-import Fastify from 'fastify'
+import Fastify, { FastifyInstance } from 'fastify'
 import cors from '@fastify/cors'
+import { healthRoutes } from './routes/health'
+import { authRoutes } from './routes/auth'
+import { workoutRoutes } from './routes/workouts'
+import { insightRoutes } from './routes/insights'
 
 const app = Fastify({ logger: true })
 
+// Register plugins
 app.register(cors, { origin: true })
 
 // Health check
 app.get('/health', async () => ({ status: 'ok', app: 'zyra-api' }))
 
-// Routes (to be expanded)
-app.get('/api/user/:id/insights', async (req, reply) => {
-  return { message: 'AI insights coming soon' }
+// Register routes
+app.register(async (fastify: FastifyInstance) => {
+  await healthRoutes(fastify)
+  await authRoutes(fastify)
+  await workoutRoutes(fastify)
+  await insightRoutes(fastify)
 })
 
 const start = async () => {
