@@ -9,9 +9,11 @@ const config: Config = {
     extend: {
       colors: {
         zyra: {
-          purple: '#8B5CF6',
-          blue: '#3B82F6',
-          green: '#10B981',
+          olive: '#8C9A2E',
+          'olive-light': '#A8B840',
+          'olive-dark': '#6B7A22',
+          warm: '#C4A84F',
+          cream: '#E8E4D0',
         }
       }
     },

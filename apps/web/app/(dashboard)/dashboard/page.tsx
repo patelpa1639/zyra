@@ -15,9 +15,9 @@ const metrics = [
     value: '87',
     unit: '%',
     sub: '+12 from yesterday',
-    color: '#10B981',
-    bg: 'rgba(16,185,129,0.08)',
-    border: 'rgba(16,185,129,0.15)',
+    color: '#8C9A2E',
+    bg: 'rgba(140,154,46,0.08)',
+    border: 'rgba(140,154,46,0.15)',
     data: recoveryData,
     trend: 'up',
   },
@@ -26,9 +26,9 @@ const metrics = [
     value: '68',
     unit: 'ms',
     sub: '↑ 5ms this week',
-    color: '#8B5CF6',
-    bg: 'rgba(139,92,246,0.08)',
-    border: 'rgba(139,92,246,0.15)',
+    color: '#C4A84F',
+    bg: 'rgba(196,168,79,0.08)',
+    border: 'rgba(196,168,79,0.15)',
     data: hrvData,
     trend: 'up',
   },
@@ -37,9 +37,9 @@ const metrics = [
     value: '7h 42m',
     unit: '',
     sub: 'Score 91 · Deep 1h 20m',
-    color: '#3B82F6',
-    bg: 'rgba(59,130,246,0.08)',
-    border: 'rgba(59,130,246,0.15)',
+    color: '#4A9B8E',
+    bg: 'rgba(74,155,142,0.08)',
+    border: 'rgba(74,155,142,0.15)',
     data: sleepData,
     trend: 'up',
   },
@@ -48,9 +48,9 @@ const metrics = [
     value: '14.2',
     unit: '',
     sub: 'High · 847 kcal',
-    color: '#F59E0B',
-    bg: 'rgba(245,158,11,0.08)',
-    border: 'rgba(245,158,11,0.15)',
+    color: '#A8B840',
+    bg: 'rgba(168,184,64,0.08)',
+    border: 'rgba(168,184,64,0.15)',
     data: strainData,
     trend: 'up',
   },
@@ -77,8 +77,8 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold tracking-tight">Good morning, Pranav</h1>
             <p className="text-gray-500 text-sm mt-0.5">Wednesday, March 4 · Last synced 2 min ago</p>
           </div>
-          <div className="flex items-center gap-2 text-xs text-green-400 bg-green-400/8 px-3 py-1.5 rounded-full border border-green-400/15">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+          <div className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border" style={{ color: '#A8B840', background: 'rgba(140,154,46,0.08)', borderColor: 'rgba(140,154,46,0.2)' }}>
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#A8B840' }} />
             Live
           </div>
         </div>
@@ -140,8 +140,8 @@ export default function DashboardPage() {
                 { day: 'Sat', strain: 9, recovery: 85 },
                 { day: 'Sun', strain: 14, recovery: 87 },
               ]} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
-                <Area type="monotone" dataKey="recovery" stroke="#10B981" strokeWidth={1.5} fill="#10B981" fillOpacity={0.08} dot={false} />
-                <Area type="monotone" dataKey="strain" stroke="#F59E0B" strokeWidth={1.5} fill="#F59E0B" fillOpacity={0.08} dot={false} />
+                <Area type="monotone" dataKey="recovery" stroke="#8C9A2E" strokeWidth={1.5} fill="#8C9A2E" fillOpacity={0.08} dot={false} />
+                <Area type="monotone" dataKey="strain" stroke="#C4A84F" strokeWidth={1.5} fill="#C4A84F" fillOpacity={0.08} dot={false} />
                 <Tooltip
                   contentStyle={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 12 }}
                   labelStyle={{ color: '#666' }}
@@ -150,8 +150,8 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </div>
           <div className="flex gap-4 mt-2">
-            <div className="flex items-center gap-1.5 text-xs text-gray-500"><span className="w-2.5 h-0.5 bg-green-400 rounded" />Recovery</div>
-            <div className="flex items-center gap-1.5 text-xs text-gray-500"><span className="w-2.5 h-0.5 bg-yellow-400 rounded" />Strain</div>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500"><span className="w-2.5 h-0.5 rounded" style={{ background: '#8C9A2E' }} />Recovery</div>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500"><span className="w-2.5 h-0.5 rounded" style={{ background: '#C4A84F' }} />Strain</div>
           </div>
         </motion.div>
 

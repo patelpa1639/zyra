@@ -26,7 +26,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       >
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 px-2 mb-8">
-          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold">Z</div>
+          <div className="w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold text-black" style={{ background: 'linear-gradient(135deg, #A8B840, #C4A84F)' }}>Z</div>
           <span className="font-semibold tracking-tight">Zyra</span>
         </Link>
 
@@ -38,9 +38,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <div
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
                     active
-                      ? 'bg-white/[0.06] text-white'
+                      ? 'text-white'
                       : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.03]'
                   }`}
+                  style={active ? { background: 'rgba(140,154,46,0.12)', borderLeft: '2px solid #8C9A2E' } : {}}
                 >
                   <span className="text-base w-5 text-center">{item.icon}</span>
                   <span>{item.label}</span>
